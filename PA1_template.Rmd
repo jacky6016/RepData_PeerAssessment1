@@ -4,22 +4,84 @@ output:
   html_document:
     keep_md: true
 ---
-
+## Loading libraries
+```{r}
+# install.packages("dplyr")
+# install.packages("knitr")
+# install.packages("tidyr")
+# install.packages("lattice")
+library(dplyr)
+library(knitr)
+library(tidyr)
+library(lattice)
+```
 
 ## Loading and preprocessing the data
+```{r}
+dataframe <- read.csv("activity.csv")
+data_tbl <- tbl_df(dataframe)
+data_tbl <- filter(data_tbl, !is.na(steps))
+data_tbl
+```
 
+## Calculate the mean total number of steps taken per day
+```{r}
+by_date <- group_by(data_tbl, date)
+summary_date <- summarize(by_date, steps = sum(steps))
+summary_date
+hist(summary_date$steps, breaks = 10, col = "green", xlab = "steps", ylab = "frequency",
+     main = "Histogram of number of steps taken per day")
+rug(summary_date$steps)
+abline(v = median(summary_date$steps), lwd = 4, col = "blue")
+median(summary_date$steps)
+mean(summary_date$steps)
 
-
-## What is mean total number of steps taken per day?
-
-
-
+```
 ## What is the average daily activity pattern?
-
-
-
+```{r}
+by_interval <- group_by(data_tbl, interval)
+summary_interval <- summarize(by_interval, steps = mean(steps))
+summary_interval
+plot(summary_interval$interval, summary_interval$steps, type = "l", xlab = "interval", ylab = "steps",
+     main = "Time series plot of steps") 
+# The time interval with the averaged max steps
+summary_interval$interval[summary_interval$steps == max(summary_interval$steps)]
+```
 ## Imputing missing values
+```{r} 
+sum(is.na(dataframe$steps))
+# Fill in missing values in a new dataframe(according to the mean of each time interval)
+missing_indices <- which(is.na(dataframe$steps), arr.ind=TRUE)
+targetIntervals <- dataframe$interval[missing_indices]
+fillIn <- c();
+for(i in targetIntervals)
+  fillIn <- c(fillIn, summary_interval$steps[summary_interval$interval == i]);
+newDataframe <- dataframe
+newDataframe$steps[is.na(dataframe$steps)] <- fillIn
 
-
+data_tbl_new <- tbl_df(newDataframe)
+by_date_new <- group_by(data_tbl_new, date)
+summary_date_new <- summarize(by_date_new, steps = sum(steps))
+summary_date_new
+hist(summary_date_new$steps, breaks = 10, col = "green", xlab = "steps", ylab = "frequency",
+     main = "Histogram of number of steps taken per day(after filling NA's)")
+rug(summary_date_new$steps)
+abline(v = median(summary_date_new$steps), lwd = 4, col = "blue")
+median(summary_date_new$steps)
+mean(summary_date_new$steps)
+```
+After imputing the NA's, the mean stays the same(because we fill NA's with mean step values of corresponding intervals), which cause them to be non-integer. So the median would be non-integer, too.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r} 
+wday <- as.POSIXlt(summary_date_new$date)$wday > 0 & as.POSIXlt(summary_date_new$date)$wday < 6
+newDataframe$dayType <- factor(wday, labels = c("weekend", "weekday"))
+data_tbl_new <- tbl_df(newDataframe)
+by_interval_new <- group_by(data_tbl_new, interval, dayType)
+summary_interval_new <- summarize(by_interval_new, steps = mean(steps))
+summary_interval_new
+xyplot(summary_interval_new$steps ~ summary_interval_new$interval 
+       | summary_interval_new$dayType, layout = c(1, 2),
+       type = "l", xlab = "Interval", ylab = "Number of steps")
+  
+```
